@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
+import com.google.common.base.Strings;
 import org.apache.commons.dbcp2.BasicDataSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,16 +26,23 @@ import com.zaxxer.hikari.HikariDataSource;
 public class DbDownTest
 {
     private static final String JDBC_URL = "jdbc:mysql://172.16.207.207/test";
+    private static final String JDBC_DRIVER_CLASS = "com.mysql.jdbc.Driver";
+//    private static final String JDBC_URL = "jdbc:postgresql://172.16.207.207/test";
+//    private static final String JDBC_DRIVER_CLASS = "org.postgresql.Driver";
 
     private static final Logger LOGGER = LoggerFactory.getLogger(DbDownTest.class);
 
     private static final int MIN_POOL_SIZE = 5;
     private int maxPoolSize = MIN_POOL_SIZE;
 
+    private static final String USERNAME = "root";
+    private static final String PASSWORD = "";
+
     private DataSource hikariDS;
     private DataSource c3p0DS;
     private DataSource dbcp2DS;
     private DataSource viburDS;
+    private DataSource tomcatDS;
 
     public static void main(String[] args)
     {
@@ -45,9 +53,10 @@ public class DbDownTest
     private DbDownTest()
     {
         hikariDS = setupHikari();
-        viburDS = setupVibur(); 
+        viburDS = setupVibur();
         c3p0DS = setupC3P0();
         dbcp2DS = setupDbcp2();
+        tomcatDS = setupTomcat();
     }
 
     private void start()
@@ -93,6 +102,7 @@ public class DbDownTest
         new Timer(true).schedule(new MyTask(viburDS), 5000, 2000);
         new Timer(true).schedule(new MyTask(c3p0DS), 5000, 2000);
         new Timer(true).schedule(new MyTask(dbcp2DS), 5000, 2000);
+        new Timer(true).schedule(new MyTask(tomcatDS), 5000, 2000);
 
         try
         {
@@ -108,8 +118,8 @@ public class DbDownTest
     {
         BasicDataSource ds = new BasicDataSource();
         ds.setUrl(JDBC_URL);
-        ds.setUsername("root");
-        ds.setPassword("");
+        ds.setUsername(USERNAME);
+        ds.setPassword(PASSWORD);
         ds.setInitialSize(MIN_POOL_SIZE);
         ds.setMinIdle(MIN_POOL_SIZE);
         ds.setMaxIdle(maxPoolSize);
@@ -126,12 +136,47 @@ public class DbDownTest
         return ds;
     }
 
+    protected DataSource setupTomcat()
+    {
+        org.apache.tomcat.jdbc.pool.DataSource ds = new org.apache.tomcat.jdbc.pool.DataSource();
+        ds.setUrl(JDBC_URL);
+//        ds.setDriverClassName(JDBC_DRIVER_CLASS);
+        ds.setUsername(USERNAME);
+        ds.setPassword(PASSWORD);
+        ds.setInitialSize(MIN_POOL_SIZE);
+        ds.setMinIdle(MIN_POOL_SIZE);
+        ds.setMaxIdle(maxPoolSize);
+        ds.setMaxActive(maxPoolSize);
+        ds.setMaxWait(5000);
+        ds.setMaxAge(600000);
+        ds.setTimeBetweenEvictionRunsMillis(5000);
+        ds.setMinEvictableIdleTimeMillis(5000);
+        ds.setValidationQuery("SELECT 1");
+        ds.setValidationQueryTimeout(5);
+        ds.setValidationInterval(15000);
+        ds.setTestOnBorrow(true);
+        ds.setTestWhileIdle(true);
+        ds.setTestOnReturn(false);
+        ds.setJdbcInterceptors("ConnectionState;StatementCache(max=200);SlowQueryReport(logFailed=true)");
+        ds.setDefaultTransactionIsolation(2);
+        ds.setAbandonWhenPercentageFull(100);
+        ds.setRemoveAbandoned(true);
+        ds.setRemoveAbandonedTimeout(120);
+        ds.setLogAbandoned(false);
+
+        ds.setDefaultAutoCommit(false);
+        ds.setRollbackOnReturn(true);
+        ds.setTestOnBorrow(true);
+
+        return ds;
+    }
+
     protected DataSource setupBone()
     {
         BoneCPConfig config = new BoneCPConfig();
         config.setJdbcUrl(JDBC_URL);
-        config.setUsername("root");
-        config.setPassword("");
+        config.setUsername(USERNAME);
+        config.setPassword(PASSWORD);
         config.setConnectionTimeoutInMs(5000);
         config.setAcquireIncrement(1);
         config.setAcquireRetryAttempts(3);
@@ -147,8 +192,9 @@ public class DbDownTest
     {
         HikariConfig config = new HikariConfig();
         config.setJdbcUrl(JDBC_URL);
-        // config.setDriverClassName("com.mysql.jdbc.Driver");
-        config.setUsername("root");
+        // config.setDriverClassName(JDBC_DRIVER_CLASS);
+        config.setUsername(USERNAME);
+        if (!Strings.isNullOrEmpty(PASSWORD)) config.setPassword(PASSWORD);
         config.setConnectionTimeout(5000);
         config.setMinimumIdle(MIN_POOL_SIZE);
         config.setMaximumPoolSize(maxPoolSize);
@@ -164,7 +210,8 @@ public class DbDownTest
         {
             ComboPooledDataSource cpds = new ComboPooledDataSource();
             cpds.setJdbcUrl( JDBC_URL );
-            cpds.setUser("root");
+            cpds.setUser(USERNAME);
+            if (!Strings.isNullOrEmpty(PASSWORD)) cpds.setPassword(PASSWORD);
             cpds.setCheckoutTimeout(5000);
             cpds.setTestConnectionOnCheckout(true);
             cpds.setAcquireIncrement(1);
@@ -187,8 +234,8 @@ public class DbDownTest
     {
         ViburDBCPDataSource vibur = new ViburDBCPDataSource();
         vibur.setJdbcUrl( JDBC_URL );
-        vibur.setUsername("root");
-        vibur.setPassword("");
+        vibur.setUsername(USERNAME);
+        vibur.setPassword(PASSWORD);
         vibur.setConnectionTimeoutInMs(5000);
         vibur.setValidateTimeoutInSeconds(3);
         vibur.setLoginTimeoutInSeconds(2);
